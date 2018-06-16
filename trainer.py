@@ -11,6 +11,7 @@ from tqdm import tqdm
 import tf_recorder as tensorboard
 import utils as utils
 import numpy as np
+import glob
 
 
 class trainer:
@@ -51,8 +52,6 @@ class trainer:
         # network and cirterion
         self.G = net.Generator(config)
         self.D = net.Discriminator(config)
-        if self.load:
-            self.load_model('repo/model')
         print('Generator structure: ')
         print(self.G.model)
         print('Discriminator structure: ')
@@ -71,9 +70,26 @@ class trainer:
                 self.G = torch.nn.DataParallel(self.G, device_ids=gpus).cuda()
                 self.D = torch.nn.DataParallel(self.D, device_ids=gpus).cuda()
 
+        self.renew_everything()
+        if self.load:
+            self.load_snapshot('repo/model')
+        self.renew_everything()
+
+        if self.use_cuda:
+            self.mse = self.mse.cuda()
+            torch.cuda.manual_seed(config.random_seed)
+            if config.n_gpu == 1:
+                self.G = torch.nn.DataParallel(self.G).cuda(device=0)
+                self.D = torch.nn.DataParallel(self.D).cuda(device=0)
+            else:
+                gpus = []
+                for i in range(config.n_gpu):
+                    gpus.append(i)
+                self.G = torch.nn.DataParallel(self.G, device_ids=gpus).cuda()
+                self.D = torch.nn.DataParallel(self.D, device_ids=gpus).cuda()
+
 
                 # define tensors, ship model to cuda, and get dataloader.
-        self.renew_everything()
 
         # tensorboard
         self.use_tb = config.use_tb
@@ -327,30 +343,44 @@ class trainer:
                                            self.globalIter)
         error_file.flush()
 
-    def load_model(self, path):
-        #for i in range(2+1, self.resl):
-            #self.D.grow_network(i)
-            #self.G.grow_network(i)
-        if not os.path.exists(path):
-            return None
-        ndis = 'dis_R{}_T{}.pth.tar'.format(int(floor(self.resl)), self.globalTick)
-        ngen = 'gen_R{}_T{}.pth.tar'.format(int(floor(self.resl)), self.globalTick)
-        save_path = os.path.join(path, ndis)
-        if os.path.exists(save_path):
-            state = torch.load(save_path)
-            self.D.load_state_dict(state['state_dict'])
-            self.opt_d.load_state_dict(state['optimizer'])
-        else:
-            print ("No model load")
-            exit()
-        save_path = os.path.join(path, ngen)
-        if os.path.exists(save_path):
-            state = torch.load(save_path)
-            self.G.load_state_dict(state['state_dict'])
-            self.opt_g.load_state_dict(state['optimizer'])
-        else:
-            print ("No model load")
-            exit()
+    def load_snapshot(self, path='repo/model'):
+        snapshots_file = glob.glob(os.path.join(path, '*.pth.tar'))
+        gens = [_file for _file in snapshots_file if 'gen_R' in _file]
+        diss = [_file for _file in snapshots_file if 'dis_R' in _file]
+        gens.sort()
+        diss.sort()
+        if len(gens) == 0 or len(diss) == 0:
+            print('No model detected, training from skretch')
+            return
+        gen = gens[-1]
+        dis = diss[-1]
+        assert gen[len(path) + 5:] == dis[len(path) + 5:]
+        print('Loading {} and {} from disk'.format(gen, dis))
+        for net, snap, opt, mode in zip([self.G, self.D], [gen, dis], [self.opt_g, self.opt_d], ['g', 'd']):
+            _, R, T = snap.split('_') #gen Rx Txxx.pth.tar
+            T, _, _ = T.split('.') #Txxxx pth tar
+            resl = int(R[1:])
+            for i in range(3, resl+1):
+                net.module.grow_network(i)
+                net.module.flush_network()
+            checkpoint = torch.load(snap)
+            #opt.load_state_dict(checkpoint['optimizer'])
+            state_dict = {}
+            for key, val in checkpoint['state_dict'].items():
+                if mode == 'g':
+                    if not ("concat_block" in key or "fadein_block" in key):
+                        state_dict[key] = val
+                    else:
+                        print (key)
+                if mode == 'd':
+                    if not ("concat_block" in key or "fadein_block" in key or "from_rgb_block" in key):
+                        state_dict[key] = val
+                    else:
+                        print (key)
+            net.module.load_state_dict(state_dict, strict=False)
+        self.resl = resl
+        self.globalTick = int(T[1:])
+        self.loader.renew(self.resl)
         print('model load @ {}'.format(path))
 
     def get_state(self, target):

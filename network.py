@@ -131,7 +131,7 @@ class Generator(nn.Module):
             if not name=='to_rgb_block':
                 new_model.add_module(name, module)                      # make new structure and,
                 new_model[-1].load_state_dict(module.state_dict())      # copy pretrained weights
-            
+
         if resl >= 3 and resl <= 9:
             print ('growing network[{}x{} to {}x{}]. It may take few seconds...'.format(int(pow(2,resl-1)), int(pow(2,resl-1)), int(pow(2,resl)), int(pow(2,resl))))
             low_resl_to_rgb = deepcopy_module(self.model, 'to_rgb_block')
@@ -157,17 +157,22 @@ class Generator(nn.Module):
             # make deep copy and paste.
             high_resl_block = deepcopy_module(self.model.concat_block.layer2, 'high_resl_block')
             high_resl_to_rgb = deepcopy_module(self.model.concat_block.layer2, 'high_resl_to_rgb')
-           
+            #print ('a',get_module_names(self.model))
+
             new_model = nn.Sequential()
+            #print ('b',get_module_names(self.model))
             for name, module in self.model.named_children():
                 if name!='concat_block' and name!='fadein_block':
                     new_model.add_module(name, module)                      # make new structure and,
                     new_model[-1].load_state_dict(module.state_dict())      # copy pretrained weights
 
             # now, add the high resolution block.
+            #print ('c',get_module_names(self.model))
             new_model.add_module(self.layer_name, high_resl_block)
             new_model.add_module('to_rgb_block', high_resl_to_rgb)
             self.model = new_model
+            #print ('d',get_module_names(self.model))
+            #print (self.model.state_dict().keys())
             self.module_names = get_module_names(self.model)
             
 
