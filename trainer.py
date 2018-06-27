@@ -361,7 +361,7 @@ class trainer:
             T, _, _ = T.split('.') #Txxxx pth tar
             resl = int(R[1:])
             for i in range(3, resl+1):
-                net.module.grow_network(i)
+                net.module.grow_network(resl)
                 net.module.flush_network()
             checkpoint = torch.load(snap)
             #opt.load_state_dict(checkpoint['optimizer'])
