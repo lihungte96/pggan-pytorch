@@ -76,18 +76,17 @@ class trainer:
         self.renew_everything()
 
         if self.use_cuda:
-            self.mse = self.mse.cuda()
-            torch.cuda.manual_seed(config.random_seed)
             if config.n_gpu == 1:
-                self.G = torch.nn.DataParallel(self.G).cuda(device=0)
-                self.D = torch.nn.DataParallel(self.D).cuda(device=0)
+                self.G.cuda(device=0)
+                self.D.cuda(device=0)
+            '''
             else:
                 gpus = []
                 for i in range(config.n_gpu):
                     gpus.append(i)
                 self.G = torch.nn.DataParallel(self.G, device_ids=gpus).cuda()
                 self.D = torch.nn.DataParallel(self.D, device_ids=gpus).cuda()
-
+            '''
 
                 # define tensors, ship model to cuda, and get dataloader.
 
@@ -361,7 +360,7 @@ class trainer:
             T, _, _ = T.split('.') #Txxxx pth tar
             resl = int(R[1:])
             for i in range(3, resl+1):
-                net.module.grow_network(resl)
+                net.module.grow_network(i)
                 net.module.flush_network()
             checkpoint = torch.load(snap)
             #opt.load_state_dict(checkpoint['optimizer'])

@@ -4,7 +4,7 @@ __pycache__/
 repo/
 save/
 videoplayback.mp4
-error.txt
+*error.txt
 
 # data files.
 *.h5
