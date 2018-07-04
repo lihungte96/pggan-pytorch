@@ -198,7 +198,7 @@ class loader:
                     print (resize_img.shape)
                     resize_img = torch.Tensor(resize_img)
                     resize_img /= 255
-                    #resize_img = resize_img.transpose(0,2).transpose(1,2)
+                    resize_img = resize_img.transpose(0,2).transpose(1,2)
                     #resize_img = torch.Tensor(pic_size, pic_size, 3).fill_(255) - resize_img
                     batch_picture[index] = resize_img
                     index += 1
