@@ -86,11 +86,13 @@ class tester:
     def test(self):
         max = -100
         max_picture = None
-        for index in range(100):
+        for index in range(10000):
             # update discriminator.
             #self.x.data = self.feed_interpolated_input(self.loader.get_batch())
-            temp = self.loader.load_batch_picture(self.batch, self.imsize)
+            temp, suc= self.loader.load_batch_picture(self.batch, self.imsize)
 
+            if (not suc):
+                break
             if (temp.size()[0] != self.batch): # end of video
                 break
             self.x.data = temp
@@ -99,11 +101,11 @@ class tester:
             print (index, "data", self.fx)
             if (self.fx > max):
                 max = self.fx
-                max_picture = self.x.data
+                max_picture = temp
                 print (max, self.fx)
-            utils.save_image_single(max_picture, "test/test_{}.jpg".format(index))
+            utils.save_image_single(temp, "test/test_{}.jpg".format(index), self.imsize)
         print (max)
-        utils.save_image_single(max_picture, "test/max.jpg")
+        utils.save_image_single(max_picture, "test/max.jpg", self.imsize)
 
     def load_snapshot(self, path='repo/model'):
         snapshots_file = glob.glob(os.path.join(path, '*.pth.tar'))
@@ -147,8 +149,12 @@ class tester:
 class loader:
     def __init__(self):
         self.video = cv2.VideoCapture('video.mp4')
+        self.skip = 0
+
 
     def get_crop_pos(self):
+        if hasattr(self, 'save'):
+            return self.save
         vid = self.video
         if (vid.isOpened()):
             ret, frame = vid.read()  # the first image
@@ -170,33 +176,43 @@ class loader:
                     h2 = height
                     w1 = 0
                     w2 = width
-                return w1, w2, h1, h2
+                self.save = [w1, w2, h1, h2]
+                return self.save
 
     def load_batch_picture(self, batch_size, pic_size):
         batch_picture = torch.Tensor(batch_size, 3, pic_size, pic_size)
         index = 0
-        skip = 0
         w1, w2, h1, h2 = self.get_crop_pos()
         while (self.video.isOpened() and index < batch_size
-                and int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))):
+                and self.skip < int(self.video.get(cv2.CAP_PROP_FRAME_COUNT))):
 
             # frame is image
             ret, frame = self.video.read()
 
             if ret == True:
-                if (skip % 10 == 0): # cal every 10 frame
+                if (self.skip % 120 == 0): # cal every 10 frame
                     crop_img = frame[w1:w2, h1:h2]
-                    resize_img = torch.Tensor(cv2.resize(crop_img, (pic_size, pic_size)))
-                    resize_img = resize_img.transpose(0,2).transpose(1,2)
+                    resize_img = cv2.resize(crop_img, (pic_size, pic_size))
+                    print (resize_img.shape)
+                    resize_img = cv2.cvtColor(resize_img,cv2.COLOR_BGR2RGB)
+                    print (resize_img.shape)
+                    resize_img = torch.Tensor(resize_img)
+                    resize_img /= 255
+                    #resize_img = resize_img.transpose(0,2).transpose(1,2)
+                    #resize_img = torch.Tensor(pic_size, pic_size, 3).fill_(255) - resize_img
                     batch_picture[index] = resize_img
+                    index += 1
             else:
+                return None, False
                 break
             if cv2.waitKey(3) & 0xFF == ord('q'):
+                return None, False
                 break
-            index += 1
-            skip += 1
-        return batch_picture
+            self.skip += 1
+        return batch_picture, True
 
 if __name__ == "__main__":
+    if (not os.path.exists("test")):
+        os.mkdir("test/")
     test = tester(config)
     test.test()
