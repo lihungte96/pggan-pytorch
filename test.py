@@ -10,7 +10,7 @@ import utils as utils
 import glob
 
 class tester:
-    def __init__(self, config):
+    def __init__(self, config, loader, path):
         self.config = config
         if torch.cuda.is_available():
             self.use_cuda = True
@@ -65,7 +65,8 @@ class tester:
             if config.n_gpu == 1:
                 self.D.cuda(device=0)
 
-        self.loader = loader()
+        self.loader = loader
+        self.path = path
 
     def renew_everything(self):
         # define tensors
@@ -84,10 +85,13 @@ class tester:
             self.D = self.D.cuda()
 
     def test(self):
-        max = -100
+        name = path.split('.')[0]
+        max_value = -100.
+        max_index = 0
         max_picture = None
+        last = 1.
+        sim_range = [1., 1.]
         for index in range(10000):
-            # update discriminator.
             #self.x.data = self.feed_interpolated_input(self.loader.get_batch())
             temp, suc= self.loader.load_batch_picture(self.batch, self.imsize)
 
@@ -99,13 +103,16 @@ class tester:
             self.fx = self.D(self.x)
             self.fx = self.fx.cpu().data[0][0]
             print (index, "data", self.fx)
-            if (self.fx > max):
-                max = self.fx
+            if (self.fx > max_value and self.fx <= sim_range[1] and self.fx >= sim_range[0]):
+                max_value = self.fx
+                max_index = index
                 max_picture = temp
-                print (max, self.fx)
-            utils.save_image_single(temp, "test/test_{}.jpg".format(index), self.imsize)
-        print (max)
-        utils.save_image_single(max_picture, "test/max.jpg", self.imsize)
+            utils.save_image_single(temp, "test/test_index_score_{}_{}.jpg".format(name, index))
+            sim_range[0] = min(last, self.fx) - abs(last - self.fx)
+            sim_range[1] = max(last, self.fx) + abs(last - self.fx)
+            last = self.fx
+        print (max_index, "max", max_value)
+        utils.save_image_single(max_picture, "test/max_index_score_{}.jpg".format(name))
 
     def load_snapshot(self, path='repo/model'):
         snapshots_file = glob.glob(os.path.join(path, '*.pth.tar'))
@@ -147,8 +154,10 @@ class tester:
         print('model load @ {}'.format(path))
 
 class loader:
-    def __init__(self):
-        self.video = cv2.VideoCapture('video.mp4')
+    def __init__(self, path):
+        if (not os.path.exists(path)):
+            print ("video file not found!")
+        self.video = cv2.VideoCapture(path)
         self.skip = 0
 
 
@@ -190,14 +199,12 @@ class loader:
             ret, frame = self.video.read()
 
             if ret == True:
-                if (self.skip % 120 == 0): # cal every 10 frame
+                if (self.skip % 10 == 0): # cal every 10 frame
                     crop_img = frame[w1:w2, h1:h2]
                     resize_img = cv2.resize(crop_img, (pic_size, pic_size))
-                    print (resize_img.shape)
                     resize_img = cv2.cvtColor(resize_img,cv2.COLOR_BGR2RGB)
-                    print (resize_img.shape)
                     resize_img = torch.Tensor(resize_img)
-                    resize_img /= 255
+                    resize_img /= 255.
                     resize_img = resize_img.transpose(0,2).transpose(1,2)
                     #resize_img = torch.Tensor(pic_size, pic_size, 3).fill_(255) - resize_img
                     batch_picture[index] = resize_img
@@ -214,5 +221,7 @@ class loader:
 if __name__ == "__main__":
     if (not os.path.exists("test")):
         os.mkdir("test/")
-    test = tester(config)
+    path = "video1.mp4"
+    loader = loader(path)
+    test = tester(config, loader, path)
     test.test()
