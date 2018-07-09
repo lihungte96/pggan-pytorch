@@ -221,7 +221,7 @@ class loader:
 if __name__ == "__main__":
     if (not os.path.exists("test")):
         os.mkdir("test/")
-    path = "video1.mp4"
+    path = "video2.mp4"
     loader = loader(path)
     test = tester(config, loader, path)
     test.test()
