@@ -200,8 +200,7 @@ class loader:
 
             if ret == True:
                 if (self.skip % 10 == 0): # cal every 10 frame
-                    crop_img = frame[w1:w2, h1:h2]
-                    resize_img = cv2.resize(crop_img, (pic_size, pic_size))
+                    resize_img = cv2.resize(frame, (pic_size, pic_size))
                     resize_img = cv2.cvtColor(resize_img,cv2.COLOR_BGR2RGB)
                     resize_img = torch.Tensor(resize_img)
                     resize_img /= 255.
@@ -221,7 +220,7 @@ class loader:
 if __name__ == "__main__":
     if (not os.path.exists("test")):
         os.mkdir("test/")
-    path = "video2.mp4"
+    path = "video1.mp4"
     loader = loader(path)
     test = tester(config, loader, path)
     test.test()
